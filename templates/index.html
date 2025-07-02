@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Bild auf E-Paper hochladen</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #f0f0f0;
+            text-align: center;
+            padding: 40px;
+        }
+        form {
+            background: #fff;
+            display: inline-block;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px #aaa;
+        }
+        input[type="file"], input[type="submit"] {
+            margin: 10px;
+        }
+        #preview {
+            max-width: 400px;
+            margin: 20px auto;
+            display: none;
+        }
+        #spinner {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #4CAF50;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            margin: 20px auto;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #displayBtn {
+            display: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #4CAF50;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        #displayBtn:hover {
+            background: #45a049;
+        }
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.75);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            flex-direction: column;
+            color: white;
+            font-size: 24px;
+        }
+        #overlayContent {
+            text-align: center;
+        }
+        #overlaySpinner {
+            border: 12px solid #f3f3f3;
+            border-top: 12px solid #4CAF50;
+            border-radius: 50%;
+            width: 80px;
+            height: 80px;
+            margin: 20px auto;
+            animation: spin 1s linear infinite;
+        }
+        #backButton {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 18px;
+            background: #4CAF50;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+        }
+        #backButton:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>Bild auf E-Paper vorbereiten</h1>
+    <form id="uploadForm">
+        <input type="file" name="file" id="fileInput" accept="image/*" required><br>
+        <label><input type="radio" name="mode" value="fit" checked> Fit</label>
+        <label><input type="radio" name="mode" value="fill"> Fill</label>
+        <label><input type="radio" name="mode" value="stretch"> Stretch</label><br>
+    </form>
+    <img id="preview" src="">
+    <div id="spinner"></div>
+    <button id="displayBtn">Anzeigen</button>
+
+    <!-- Overlay -->
+    <div id="overlay">
+        <div id="overlayContent">
+            <div id="overlaySpinner"></div>
+            <div id="overlayDone" style="display: none;">✔️ <br> Fertig!</div>
+            <button id="backButton" onclick="window.location.href='/'" style="display: none;">Zurück</button>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById("fileInput");
+        const modeInputs = document.querySelectorAll("input[name='mode']");
+        const preview = document.getElementById("preview");
+        const displayBtn = document.getElementById("displayBtn");
+        const uploadForm = document.getElementById("uploadForm");
+        const spinner = document.getElementById("spinner");
+
+        function updatePreview() {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const formData = new FormData(uploadForm);
+
+            spinner.style.display = "block";
+            displayBtn.style.display = "none";
+
+            fetch("/preview", {
+                method: "POST",
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                spinner.style.display = "none";
+
+                if (data.preview) {
+                    preview.src = data.preview;
+                    preview.style.display = "block";
+                    displayBtn.style.display = "inline-block";
+                } else {
+                    displayBtn.style.display = "none";
+                }
+            })
+            .catch(() => {
+                spinner.style.display = "none";
+                displayBtn.style.display = "none";
+            });
+        }
+
+        fileInput.addEventListener("change", updatePreview);
+        modeInputs.forEach(input => input.addEventListener("change", updatePreview));
+
+        displayBtn.addEventListener("click", () => {
+            const overlay = document.getElementById("overlay");
+            const overlaySpinner = document.getElementById("overlaySpinner");
+            const overlayDone = document.getElementById("overlayDone");
+            const backButton = document.getElementById("backButton");
+
+            overlay.style.display = "flex";
+            overlaySpinner.style.display = "block";
+            overlayDone.style.display = "none";
+            backButton.style.display = "none";
+
+            fetch("/display", { method: "POST" })
+                .then(r => r.json())
+                .then(data => {
+                    overlaySpinner.style.display = "none";
+
+                    if (data.status === "ok") {
+                        overlayDone.style.display = "block";
+                        backButton.style.display = "inline-block";
+                    } else {
+                        overlayDone.innerText = "❌ Fehler: " + (data.error || "Unbekannt");
+                        overlayDone.style.display = "block";
+                    }
+                })
+                .catch(err => {
+                    overlaySpinner.style.display = "none";
+                    overlayDone.innerText = "❌ Fehler beim Senden";
+                    overlayDone.style.display = "block";
+                });
+        });
+    </script>
+</body>
+</html>
