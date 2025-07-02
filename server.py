@@ -4,7 +4,7 @@ import os
 import epd_7in3e_test as epd
 
 app = Flask(__name__)
-UPLOAD_FOLDER = "/home/pi/my_epaper/uploads"
+UPLOAD_FOLDER = "/home/pi/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @app.route("/", methods=["GET"])
