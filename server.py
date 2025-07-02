@@ -18,9 +18,57 @@ def index():
             form { background: #fff; display: inline-block; padding: 30px; border-radius: 10px; box-shadow: 0 0 10px #aaa; }
             input[type="file"], input[type="submit"] { margin: 10px; }
             #preview { max-width: 300px; margin: 10px auto; display: none; }
-            #progressBar { width: 100%; height: 20px; background: #eee; border-radius: 10px; overflow: hidden; display: none; }
-            #bar { height: 100%; width: 0%; background: #4CAF50; }
-            #displayBtn { display: none; margin-top: 20px; padding: 10px 20px; }
+
+            #overlay {
+                position: fixed;
+                top: 0; left: 0;
+                width: 100%; height: 100%;
+                background: rgba(0,0,0,0.5);
+                display: none;
+                justify-content: center;
+                align-items: center;
+                flex-direction: column;
+                color: white;
+                font-size: 20px;
+                z-index: 9999;
+            }
+
+            #progressBar {
+                width: 300px;
+                height: 20px;
+                background: #444;
+                border-radius: 10px;
+                overflow: hidden;
+                margin-top: 20px;
+            }
+
+            #bar {
+                height: 100%;
+                width: 0%;
+                background: #4CAF50;
+                transition: width 0.3s;
+            }
+
+            #doneSection {
+                display: none;
+                flex-direction: column;
+                align-items: center;
+                gap: 20px;
+            }
+
+            #backButton {
+                padding: 10px 20px;
+                font-size: 16px;
+                background: #4CAF50;
+                border: none;
+                border-radius: 5px;
+                color: white;
+                cursor: pointer;
+            }
+
+            #backButton:hover {
+                background: #45a049;
+            }
         </style>
     </head>
     <body>
@@ -32,17 +80,27 @@ def index():
             <label><input type="radio" name="mode" value="stretch"> Stretch</label><br>
             <input type="submit" value="Hochladen">
         </form>
-        <div id="progressBar"><div id="bar"></div></div>
         <img id="preview" src="">
-        <button id="displayBtn">Anzeigen</button>
+
+        <div id="overlay">
+            <div id="uploading">Bild wird hochgeladen und angezeigt...</div>
+            <div id="progressBar"><div id="bar"></div></div>
+            <div id="doneSection">
+                <div>✔️ Fertig!</div>
+                <button id="backButton" onclick="window.location.href='/'">Zurück</button>
+            </div>
+        </div>
 
         <script>
             const form = document.getElementById('uploadForm');
+            const overlay = document.getElementById('overlay');
+            const uploadingText = document.getElementById('uploading');
             const progressBar = document.getElementById('progressBar');
             const bar = document.getElementById('bar');
             const preview = document.getElementById('preview');
             const fileInput = document.getElementById('fileInput');
-            const displayBtn = document.getElementById('displayBtn');
+            const doneSection = document.getElementById('doneSection');
+
             let lastFilename = null;
             let lastMode = null;
 
@@ -61,8 +119,10 @@ def index():
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
                 const formData = new FormData(form);
+                overlay.style.display = "flex";
                 progressBar.style.display = "block";
                 bar.style.width = "0%";
+                doneSection.style.display = "none";
 
                 const xhr = new XMLHttpRequest();
                 xhr.open("POST", "/upload");
@@ -77,27 +137,30 @@ def index():
                         const res = JSON.parse(xhr.responseText);
                         lastFilename = res.filename;
                         lastMode = res.mode;
-                        displayBtn.style.display = "inline-block";
+
+                        // Simuliere "weiterlaufenden" Fortschritt
+                        bar.style.width = "100%";
+                        uploadingText.innerText = "Bild wird auf dem E-Paper angezeigt...";
+
+                        // Jetzt Bild anzeigen
+                        fetch("/display", {
+                            method: "POST",
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ filename: lastFilename, mode: lastMode })
+                        }).then(r => {
+                            if (r.ok) {
+                                progressBar.style.display = "none";
+                                uploadingText.style.display = "none";
+                                doneSection.style.display = "flex";
+                            } else {
+                                uploadingText.innerText = "Fehler beim Anzeigen!";
+                            }
+                        });
                     } else {
-                        alert("Fehler beim Hochladen!");
+                        overlay.innerHTML = "<h2 style='color:red;'>Fehler beim Hochladen</h2>";
                     }
                 };
                 xhr.send(formData);
-            });
-
-            displayBtn.addEventListener('click', function() {
-                fetch("/display", {
-                    method: "POST",
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ filename: lastFilename, mode: lastMode })
-                }).then(r => {
-                    if (r.ok) {
-                        displayBtn.innerText = "Angezeigt!";
-                        setTimeout(() => window.location.href = "/", 5000);
-                    } else {
-                        alert("Fehler beim Anzeigen!");
-                    }
-                });
             });
         </script>
     </body>
