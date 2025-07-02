@@ -14,7 +14,7 @@ import traceback
 import converter
 
 logging.basicConfig(level=logging.DEBUG)
-def display(imagePath, conv_style):
+def display(Himage):
     try:
         logging.info(conv_style)
         epd = epd7in3e.EPD()   
@@ -22,9 +22,6 @@ def display(imagePath, conv_style):
         epd.init()
         #epd.Clear()
         time.sleep(1)
-        # convert image
-        logging.info("convert image")
-        Himage = converter.convert(imagePath, conv_style)
         # display image
         logging.info("display image")
         epd.display(epd.getbuffer(Himage))
