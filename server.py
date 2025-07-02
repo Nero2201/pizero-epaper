@@ -158,19 +158,34 @@ def index():
                     bar.style.width = percent + "%";
                 }
             };
-            xhr.onload = function () {
+            xhr.onload = function() {
                 if (xhr.status === 200) {
                     const res = JSON.parse(xhr.responseText);
                     lastFilename = res.filename;
                     lastMode = res.mode;
-    
-                    // Upload fertig
+            
+                    // Vorschau anzeigen (vom Server bearbeitetes Bild)
+                    preview.src = "/preview.jpg?" + new Date().getTime();
+                    preview.style.display = "block";
+            
+                    // Fortschrittsanzeige fertig machen
                     bar.style.width = "100%";
-                    uploadingText.innerText = "Bereit zur Anzeige";
-                    progressBar.style.display = "none";
-    
-                    // Button anzeigen
-                    overlay.appendChild(displayButton);
+                    uploadingText.innerText = "Bild wird auf dem E-Paper angezeigt...";
+            
+                    // Jetzt Bild automatisch auf E-Paper anzeigen
+                    fetch("/display", {
+                        method: "POST",
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filename: lastFilename, mode: lastMode })
+                    }).then(r => {
+                        if (r.ok) {
+                            progressBar.style.display = "none";
+                            uploadingText.style.display = "none";
+                            doneSection.style.display = "flex";
+                        } else {
+                            uploadingText.innerText = "Fehler beim Anzeigen!";
+                        }
+                    });
                 } else {
                     overlay.innerHTML = "<h2 style='color:red;'>Fehler beim Hochladen</h2>";
                 }
