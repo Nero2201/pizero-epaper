@@ -7,7 +7,6 @@ import epd_7in3e_test as epd
 
 app = Flask(__name__)
 
-# RAM-Zwischenspeicher für das aktuell bearbeitete Bild
 last_image_data = {}
 
 @app.route("/")
@@ -66,6 +65,46 @@ def index():
             #displayBtn:hover {
                 background: #45a049;
             }
+            #overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0,0,0,0.75);
+                display: none;
+                justify-content: center;
+                align-items: center;
+                z-index: 9999;
+                flex-direction: column;
+                color: white;
+                font-size: 24px;
+            }
+            #overlayContent {
+                text-align: center;
+            }
+            #overlaySpinner {
+                border: 12px solid #f3f3f3;
+                border-top: 12px solid #4CAF50;
+                border-radius: 50%;
+                width: 80px;
+                height: 80px;
+                margin: 20px auto;
+                animation: spin 1s linear infinite;
+            }
+            #backButton {
+                margin-top: 20px;
+                padding: 10px 20px;
+                font-size: 18px;
+                background: #4CAF50;
+                border: none;
+                border-radius: 5px;
+                color: white;
+                cursor: pointer;
+            }
+            #backButton:hover {
+                background-color: #45a049;
+            }
         </style>
     </head>
     <body>
@@ -79,6 +118,15 @@ def index():
         <img id="preview" src="">
         <div id="spinner"></div>
         <button id="displayBtn">Anzeigen</button>
+
+        <!-- Overlay -->
+        <div id="overlay">
+            <div id="overlayContent">
+                <div id="overlaySpinner"></div>
+                <div id="overlayDone" style="display: none;">✔️ <br> Fertig!</div>
+                <button id="backButton" onclick="window.location.href='/'" style="display: none;">Zurück</button>
+            </div>
+        </div>
 
         <script>
             const fileInput = document.getElementById("fileInput");
@@ -94,7 +142,7 @@ def index():
 
                 const formData = new FormData(uploadForm);
 
-                // Spinner anzeigen, Vorschau bleibt sichtbar
+                // Spinner anzeigen (klein), Vorschau bleibt sichtbar
                 spinner.style.display = "block";
                 displayBtn.style.display = "none";
 
@@ -124,18 +172,33 @@ def index():
             modeInputs.forEach(input => input.addEventListener("change", updatePreview));
 
             displayBtn.addEventListener("click", () => {
+                const overlay = document.getElementById("overlay");
+                const overlaySpinner = document.getElementById("overlaySpinner");
+                const overlayDone = document.getElementById("overlayDone");
+                const backButton = document.getElementById("backButton");
+
+                overlay.style.display = "flex";
+                overlaySpinner.style.display = "block";
+                overlayDone.style.display = "none";
+                backButton.style.display = "none";
+
                 fetch("/display", { method: "POST" })
                     .then(r => r.json())
                     .then(data => {
+                        overlaySpinner.style.display = "none";
+
                         if (data.status === "ok") {
-                            alert("Bild wird angezeigt!");
-                            window.location.href = "/";
+                            overlayDone.style.display = "block";
+                            backButton.style.display = "inline-block";
                         } else {
-                            alert("Fehler beim Anzeigen: " + (data.error || "Unbekannter Fehler"));
+                            overlayDone.innerText = "❌ Fehler: " + (data.error || "Unbekannt");
+                            overlayDone.style.display = "block";
                         }
                     })
                     .catch(err => {
-                        alert("Fehler beim Senden: " + err);
+                        overlaySpinner.style.display = "none";
+                        overlayDone.innerText = "❌ Fehler beim Senden";
+                        overlayDone.style.display = "block";
                     });
             });
         </script>
