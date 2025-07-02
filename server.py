@@ -7,6 +7,7 @@ import epd_7in3e_test as epd
 
 app = Flask(__name__)
 
+# RAM-Zwischenspeicher für das aktuell bearbeitete Bild
 last_image_data = {}
 
 @app.route("/")
@@ -16,10 +17,41 @@ def index():
     <head>
         <title>Bild auf E-Paper hochladen</title>
         <style>
-            body { font-family: Arial; background: #f0f0f0; text-align: center; padding: 40px; }
-            form { background: #fff; display: inline-block; padding: 30px; border-radius: 10px; box-shadow: 0 0 10px #aaa; }
-            input[type="file"], input[type="submit"] { margin: 10px; }
-            #preview { max-width: 400px; margin: 20px auto; display: none; }
+            body {
+                font-family: Arial;
+                background: #f0f0f0;
+                text-align: center;
+                padding: 40px;
+            }
+            form {
+                background: #fff;
+                display: inline-block;
+                padding: 30px;
+                border-radius: 10px;
+                box-shadow: 0 0 10px #aaa;
+            }
+            input[type="file"], input[type="submit"] {
+                margin: 10px;
+            }
+            #preview {
+                max-width: 400px;
+                margin: 20px auto;
+                display: none;
+            }
+            #spinner {
+                border: 8px solid #f3f3f3;
+                border-top: 8px solid #4CAF50;
+                border-radius: 50%;
+                width: 60px;
+                height: 60px;
+                margin: 20px auto;
+                animation: spin 1s linear infinite;
+                display: none;
+            }
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
             #displayBtn {
                 display: none;
                 padding: 10px 20px;
@@ -31,7 +63,9 @@ def index():
                 cursor: pointer;
                 margin-top: 20px;
             }
-            #displayBtn:hover { background: #45a049; }
+            #displayBtn:hover {
+                background: #45a049;
+            }
         </style>
     </head>
     <body>
@@ -43,6 +77,7 @@ def index():
             <label><input type="radio" name="mode" value="stretch"> Stretch</label><br>
         </form>
         <img id="preview" src="">
+        <div id="spinner"></div>
         <button id="displayBtn">Anzeigen</button>
 
         <script>
@@ -51,29 +86,36 @@ def index():
             const preview = document.getElementById("preview");
             const displayBtn = document.getElementById("displayBtn");
             const uploadForm = document.getElementById("uploadForm");
+            const spinner = document.getElementById("spinner");
 
             function updatePreview() {
                 const file = fileInput.files[0];
                 if (!file) return;
 
                 const formData = new FormData(uploadForm);
+
+                // Spinner anzeigen, Vorschau bleibt sichtbar
+                spinner.style.display = "block";
+                displayBtn.style.display = "none";
+
                 fetch("/preview", {
                     method: "POST",
                     body: formData
                 })
                 .then(r => r.json())
                 .then(data => {
+                    spinner.style.display = "none";
+
                     if (data.preview) {
                         preview.src = data.preview;
                         preview.style.display = "block";
                         displayBtn.style.display = "inline-block";
                     } else {
-                        preview.style.display = "none";
                         displayBtn.style.display = "none";
                     }
                 })
                 .catch(() => {
-                    preview.style.display = "none";
+                    spinner.style.display = "none";
                     displayBtn.style.display = "none";
                 });
             }
