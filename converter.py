@@ -1,52 +1,133 @@
-from PIL import Image, ImageOps
+from flask import Flask, request, jsonify
+from PIL import Image
+import io
+import base64
+import converter
+import epd_7in3e_test as epd
 
-# Deine E-Ink-Farbpalette – maximal 256 Farben erlaubt
-PALETTE = [
-    (0, 0, 0),       # Schwarz
-    (255, 255, 255), # Weiß
-    (255, 0, 0),     # Rot
-    (255, 255, 0),   # Gelb
-    (0, 255, 0),     # Grün
-    (0, 0, 255)      # Blau
-]
+app = Flask(__name__)
+last_image_data = {}
 
-def create_palette_image(palette):
-    """Erzeugt ein Pillow-Bild im 'P'-Modus mit eigener Palette"""
-    palette_img = Image.new("P", (1, 1))
-    
-    # Pillow erwartet eine Liste mit 768 Werten (256 Farben × 3)
-    flat_palette = []
-    for color in palette:
-        flat_palette.extend(color)
-    # Auffüllen bis 256 Farben
-    while len(flat_palette) < 768:
-        flat_palette.extend((0, 0, 0))
-    
-    palette_img.putpalette(flat_palette)
-    return palette_img
+@app.route("/", methods=["GET"])
+def index():
+    return '''
+    <html>
+    <head>
+        <title>Bild auf E-Paper hochladen</title>
+        <style>
+            body { font-family: Arial; background: #f0f0f0; text-align: center; padding: 40px; }
+            form { background: #fff; display: inline-block; padding: 30px; border-radius: 10px; box-shadow: 0 0 10px #aaa; }
+            input[type="file"], input[type="submit"] { margin: 10px; }
+            #preview { max-width: 400px; margin: 20px auto; display: none; }
+            #displayBtn {
+                display: none;
+                padding: 10px 20px;
+                font-size: 16px;
+                background: #4CAF50;
+                border: none;
+                border-radius: 5px;
+                color: white;
+                cursor: pointer;
+                margin-top: 20px;
+            }
+            #displayBtn:hover { background: #45a049; }
+        </style>
+    </head>
+    <body>
+        <h1>Bild auf E-Paper vorbereiten</h1>
+        <form id="uploadForm">
+            <input type="file" name="file" id="fileInput" required><br>
+            <label><input type="radio" name="mode" value="fit" checked> Fit</label>
+            <label><input type="radio" name="mode" value="fill"> Fill</label>
+            <label><input type="radio" name="mode" value="stretch"> Stretch</label><br>
+        </form>
+        <img id="preview" src="">
+        <button id="displayBtn">Anzeigen</button>
 
+        <script>
+            const fileInput = document.getElementById("fileInput");
+            const modeInputs = document.querySelectorAll("input[name='mode']");
+            const preview = document.getElementById("preview");
+            const displayBtn = document.getElementById("displayBtn");
+            let lastUsedImage = null;
 
-def convert(path, conv_style, width = 800, height = 480):
-    # Bild laden und ggf. skalieren
-    # image = Image.open(path)
-    image = path
-    if (image.width < image.height):
-        image = image.transpose(Image.ROTATE_270)
+            function updatePreview() {
+                const file = fileInput.files[0];
+                const mode = document.querySelector("input[name='mode']:checked").value;
+                if (!file) return;
 
-    if (conv_style == "fit"):
-        image = ImageOps.pad(image, (width,height), color=(255, 255, 255))
-    elif (conv_style == "fill"):
-        image = ImageOps.fit(image, (width,height), centering=(0.5, 0.5))
-    elif (conv_style == "stretch"):
-        image = image.resize((width,height))
-    else:
-        image = ImageOps.pad(image, (width,height), color=(255, 255, 255))
+                const formData = new FormData();
+                formData.append("file", file);
+                formData.append("mode", mode);
 
-    # Palette-Bild erzeugen
-    palette_img = create_palette_image(PALETTE)
+                fetch("/preview", {
+                    method: "POST",
+                    body: formData
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.preview) {
+                        preview.src = data.preview;
+                        preview.style.display = "block";
+                        displayBtn.style.display = "inline-block";
+                    }
+                });
+            }
 
-    # Jetzt das Bild in den P-Modus konvertieren mit Floyd-Steinberg-Dithering
-    dithered = image.convert("RGB").quantize(palette=palette_img, dither=Image.Dither.FLOYDSTEINBERG)
+            fileInput.addEventListener("change", updatePreview);
+            modeInputs.forEach(input => {
+                input.addEventListener("change", updatePreview);
+            });
 
-    # zurückgeben
-    return dithered
+            displayBtn.addEventListener("click", () => {
+                fetch("/display", { method: "POST" })
+                    .then(r => {
+                        if (r.ok) {
+                            alert("Bild wird angezeigt!");
+                            window.location.href = "/";
+                        } else {
+                            alert("Fehler beim Anzeigen.");
+                        }
+                    });
+            });
+        </script>
+    </body>
+    </html>
+    '''
+
+@app.route("/preview", methods=["POST"])
+def preview():
+    file = request.files["file"]
+    mode = request.form.get("mode", "fit")
+    try:
+        img = Image.open(file.stream)
+        converted = converter.convert(img, mode)
+
+        buf = io.BytesIO()
+        converted.save(buf, format="JPEG")
+        buf.seek(0)
+
+        # Im RAM speichern für Anzeige später
+        last_image_data["image"] = converted
+
+        b64 = base64.b64encode(buf.read()).decode("utf-8")
+        data_url = f"data:image/jpeg;base64,{b64}"
+
+        return jsonify({"preview": data_url})
+
+    except Exception as e:
+        return jsonify({ "error": str(e) }), 500
+
+@app.route("/display", methods=["POST"])
+def display():
+    try:
+        img = last_image_data.get("image")
+        if img is None:
+            return "Kein Bild vorhanden", 400
+        epd.display(img)
+        return "OK"
+    except Exception as e:
+        return f"Fehler: {e}", 500
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=80)
