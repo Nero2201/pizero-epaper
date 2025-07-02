@@ -125,14 +125,15 @@ def preview():
 
 @app.route("/display", methods=["POST"])
 def display():
+    img = last_image_data.get("image")
+    if img is None:
+        return jsonify({"error": "Kein Bild im Speicher"}), 400
+
     try:
-        img = last_image_data.get("image")
-        if img is None:
-            return "Kein Bild im Speicher", 400
         epd.display(img)
-        return "OK"
+        return jsonify({"status": "ok"})
     except Exception as e:
-        return f"Fehler: {e}", 500
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=80)
