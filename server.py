@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, send_from_directory
-from PIL import Image
+from PIL import Image, ImageOps
 import os
 import epd_7in3e_test as epd
 
@@ -105,15 +105,7 @@ def index():
             let lastMode = null;
 
             fileInput.addEventListener('change', function() {
-                const file = fileInput.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        preview.src = e.target.result;
-                        preview.style.display = "block";
-                    }
-                    reader.readAsDataURL(file);
-                }
+                preview.style.display = "none";
             });
 
             form.addEventListener('submit', function(e) {
@@ -138,11 +130,14 @@ def index():
                         lastFilename = res.filename;
                         lastMode = res.mode;
 
-                        // Simuliere "weiterlaufenden" Fortschritt
+                        // Vorschau anzeigen
+                        preview.src = "/preview.jpg?" + new Date().getTime();
+                        preview.style.display = "block";
+
+                        // Fortschrittsanzeige fertig machen
                         bar.style.width = "100%";
                         uploadingText.innerText = "Bild wird auf dem E-Paper angezeigt...";
 
-                        // Jetzt Bild anzeigen
                         fetch("/display", {
                             method: "POST",
                             headers: { 'Content-Type': 'application/json' },
@@ -174,7 +169,21 @@ def upload_file():
     filename = f"upload_{mode}.jpg"
     path = os.path.join(UPLOAD_FOLDER, filename)
     file.save(path)
-    return jsonify({"filename": filename, "mode": mode})
+
+    # Bild für Vorschau bearbeiten
+    try:
+        img = Image.open(path).convert("L")  # Graustufen
+        img.thumbnail((800, 480))            # auf E-Paper-Größe skalieren (optional)
+        # img = ImageOps.invert(img)         # Beispiel für Invertierung
+        preview_path = os.path.join(UPLOAD_FOLDER, "preview.jpg")
+        img.save(preview_path)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({
+        "filename": filename,
+        "mode": mode
+    })
 
 @app.route("/display", methods=["POST"])
 def display_file():
@@ -188,6 +197,10 @@ def display_file():
         return "OK"
     except Exception as e:
         return f"Fehler: {e}", 500
+
+@app.route("/preview.jpg")
+def get_preview():
+    return send_from_directory(UPLOAD_FOLDER, "preview.jpg")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=80)
