@@ -1,4 +1,4 @@
-from PIL import Image, ImageOpsAdd commentMore actions
+from PIL import Image, ImageOps
 
 # Deine E-Ink-Farbpalette – maximal 256 Farben erlaubt
 PALETTE = [
