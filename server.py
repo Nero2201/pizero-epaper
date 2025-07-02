@@ -83,13 +83,17 @@ def index():
 
             displayBtn.addEventListener("click", () => {
                 fetch("/display", { method: "POST" })
-                    .then(r => {
-                        if (r.ok) {
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.status === "ok") {
                             alert("Bild wird angezeigt!");
                             window.location.href = "/";
                         } else {
-                            alert("Fehler beim Anzeigen.");
+                            alert("Fehler beim Anzeigen: " + (data.error || "Unbekannter Fehler"));
                         }
+                    })
+                    .catch(err => {
+                        alert("Fehler beim Senden: " + err);
                     });
             });
         </script>
