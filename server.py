@@ -6,9 +6,10 @@ import converter
 import epd_7in3e_test as epd
 
 app = Flask(__name__)
+
 last_image_data = {}
 
-@app.route("/", methods=["GET"])
+@app.route("/")
 def index():
     return '''
     <html>
@@ -49,17 +50,13 @@ def index():
             const modeInputs = document.querySelectorAll("input[name='mode']");
             const preview = document.getElementById("preview");
             const displayBtn = document.getElementById("displayBtn");
-            let lastUsedImage = null;
+            const uploadForm = document.getElementById("uploadForm");
 
             function updatePreview() {
                 const file = fileInput.files[0];
-                const mode = document.querySelector("input[name='mode']:checked").value;
                 if (!file) return;
 
-                const formData = new FormData();
-                formData.append("file", file);
-                formData.append("mode", mode);
-
+                const formData = new FormData(uploadForm);
                 fetch("/preview", {
                     method: "POST",
                     body: formData
@@ -70,14 +67,19 @@ def index():
                         preview.src = data.preview;
                         preview.style.display = "block";
                         displayBtn.style.display = "inline-block";
+                    } else {
+                        preview.style.display = "none";
+                        displayBtn.style.display = "none";
                     }
+                })
+                .catch(() => {
+                    preview.style.display = "none";
+                    displayBtn.style.display = "none";
                 });
             }
 
             fileInput.addEventListener("change", updatePreview);
-            modeInputs.forEach(input => {
-                input.addEventListener("change", updatePreview);
-            });
+            modeInputs.forEach(input => input.addEventListener("change", updatePreview));
 
             displayBtn.addEventListener("click", () => {
                 fetch("/display", { method: "POST" })
@@ -97,23 +99,22 @@ def index():
 
 @app.route("/preview", methods=["POST"])
 def preview():
+    if "file" not in request.files:
+        return jsonify({ "error": "Kein Bild erhalten" }), 400
+
     file = request.files["file"]
     mode = request.form.get("mode", "fit")
+
     try:
-        img = Image.open(file.stream)
+        img = Image.open(file.stream).convert("RGB")
         converted = converter.convert(img, mode)
-
-        buf = io.BytesIO()
-        converted.save(buf, format="JPEG")
-        buf.seek(0)
-
-        # Im RAM speichern für Anzeige später
         last_image_data["image"] = converted
 
-        b64 = base64.b64encode(buf.read()).decode("utf-8")
-        data_url = f"data:image/jpeg;base64,{b64}"
+        buf = io.BytesIO()
+        converted.convert("RGB").save(buf, format="JPEG")
+        b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
 
-        return jsonify({"preview": data_url})
+        return jsonify({ "preview": f"data:image/jpeg;base64,{b64}" })
 
     except Exception as e:
         return jsonify({ "error": str(e) }), 500
@@ -123,7 +124,7 @@ def display():
     try:
         img = last_image_data.get("image")
         if img is None:
-            return "Kein Bild vorhanden", 400
+            return "Kein Bild im Speicher", 400
         epd.display(img)
         return "OK"
     except Exception as e:
