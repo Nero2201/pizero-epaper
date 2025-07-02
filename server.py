@@ -92,72 +92,92 @@ def index():
         </div>
 
         <script>
-            const form = document.getElementById('uploadForm');
-            const overlay = document.getElementById('overlay');
-            const uploadingText = document.getElementById('uploading');
-            const progressBar = document.getElementById('progressBar');
-            const bar = document.getElementById('bar');
-            const preview = document.getElementById('preview');
-            const fileInput = document.getElementById('fileInput');
-            const doneSection = document.getElementById('doneSection');
-
-            let lastFilename = null;
-            let lastMode = null;
-
-            fileInput.addEventListener('change', function() {
-                preview.style.display = "none";
+        const form = document.getElementById('uploadForm');
+        const overlay = document.getElementById('overlay');
+        const uploadingText = document.getElementById('uploading');
+        const progressBar = document.getElementById('progressBar');
+        const bar = document.getElementById('bar');
+        const preview = document.getElementById('preview');
+        const fileInput = document.getElementById('fileInput');
+        const doneSection = document.getElementById('doneSection');
+    
+        // NEU:
+        const displayButton = document.createElement("button");
+        displayButton.innerText = "Anzeigen";
+        displayButton.style = "padding: 10px 20px; margin-top: 20px; font-size: 16px;";
+        displayButton.onclick = () => {
+            overlay.style.display = "flex";
+            progressBar.style.display = "block";
+            bar.style.width = "100%";
+            uploadingText.innerText = "Bild wird auf dem E-Paper angezeigt...";
+    
+            fetch("/display", {
+                method: "POST",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: lastFilename, mode: lastMode })
+            }).then(r => {
+                if (r.ok) {
+                    progressBar.style.display = "none";
+                    uploadingText.style.display = "none";
+                    doneSection.style.display = "flex";
+                    displayButton.remove();  // Button wieder entfernen
+                } else {
+                    uploadingText.innerText = "Fehler beim Anzeigen!";
+                }
             });
-
-            form.addEventListener('submit', function(e) {
-                e.preventDefault();
-                const formData = new FormData(form);
-                overlay.style.display = "flex";
-                progressBar.style.display = "block";
-                bar.style.width = "0%";
-                doneSection.style.display = "none";
-
-                const xhr = new XMLHttpRequest();
-                xhr.open("POST", "/upload");
-                xhr.upload.onprogress = function(e) {
-                    if (e.lengthComputable) {
-                        const percent = (e.loaded / e.total) * 100;
-                        bar.style.width = percent + "%";
-                    }
-                };
-                xhr.onload = function() {
-                    if (xhr.status === 200) {
-                        const res = JSON.parse(xhr.responseText);
-                        lastFilename = res.filename;
-                        lastMode = res.mode;
-
-                        // Vorschau anzeigen
-                        preview.src = "/preview.jpg?" + new Date().getTime();
-                        preview.style.display = "block";
-
-                        // Fortschrittsanzeige fertig machen
-                        bar.style.width = "100%";
-                        uploadingText.innerText = "Bild wird auf dem E-Paper angezeigt...";
-
-                        fetch("/display", {
-                            method: "POST",
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ filename: lastFilename, mode: lastMode })
-                        }).then(r => {
-                            if (r.ok) {
-                                progressBar.style.display = "none";
-                                uploadingText.style.display = "none";
-                                doneSection.style.display = "flex";
-                            } else {
-                                uploadingText.innerText = "Fehler beim Anzeigen!";
-                            }
-                        });
-                    } else {
-                        overlay.innerHTML = "<h2 style='color:red;'>Fehler beim Hochladen</h2>";
-                    }
-                };
-                xhr.send(formData);
-            });
-        </script>
+        }
+    
+        let lastFilename = null;
+        let lastMode = null;
+    
+        fileInput.addEventListener('change', function () {
+            const file = fileInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    preview.src = e.target.result;
+                    preview.style.display = "block";
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+    
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(form);
+            overlay.style.display = "flex";
+            progressBar.style.display = "block";
+            bar.style.width = "0%";
+            doneSection.style.display = "none";
+    
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", "/upload");
+            xhr.upload.onprogress = function (e) {
+                if (e.lengthComputable) {
+                    const percent = (e.loaded / e.total) * 100;
+                    bar.style.width = percent + "%";
+                }
+            };
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    const res = JSON.parse(xhr.responseText);
+                    lastFilename = res.filename;
+                    lastMode = res.mode;
+    
+                    // Upload fertig
+                    bar.style.width = "100%";
+                    uploadingText.innerText = "Bereit zur Anzeige";
+                    progressBar.style.display = "none";
+    
+                    // Button anzeigen
+                    overlay.appendChild(displayButton);
+                } else {
+                    overlay.innerHTML = "<h2 style='color:red;'>Fehler beim Hochladen</h2>";
+                }
+            };
+            xhr.send(formData);
+        });
+    </script>
     </body>
     </html>
     '''
