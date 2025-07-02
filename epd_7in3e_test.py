@@ -16,7 +16,6 @@ import converter
 logging.basicConfig(level=logging.DEBUG)
 def display(Himage):
     try:
-        logging.info(conv_style)
         epd = epd7in3e.EPD()   
         logging.info("init")
         epd.init()
